@@ -1,15 +1,9 @@
-resource "azurerm_resource_group" "this" {
-  name     = local.project
-  location = local.location
-  tags     = local.common_tags
-}
-
 module "vnet" {
   source = "../../modules/vnet"
 
   name                = "${local.name}-vnet"
-  location            = azurerm_resource_group.this.location
-  resource_group_name = azurerm_resource_group.this.name
+  location            = local.location
+  resource_group_name = local.project
   address_space       = [local.address_space]
   subnets             = { (local.subnet_name) = local.subnet_prefix }
   tags                = local.common_tags
@@ -20,8 +14,8 @@ module "nsg" {
   for_each = local.nodes
 
   name                = "${local.name}-${each.key}-nsg"
-  location            = azurerm_resource_group.this.location
-  resource_group_name = azurerm_resource_group.this.name
+  location            = local.location
+  resource_group_name = local.project
   inbound_rules       = each.value.inbound_rules
   tags                = merge(local.common_tags, { node_number = each.value.node_number })
 }
@@ -31,8 +25,8 @@ module "vm" {
   for_each = local.nodes
 
   name                      = "${local.name}-${each.key}"
-  location                  = azurerm_resource_group.this.location
-  resource_group_name       = azurerm_resource_group.this.name
+  location                  = local.location
+  resource_group_name       = local.project
   zone                      = local.zone
   subnet_id                 = module.vnet.subnet_ids[local.subnet_name]
   private_ip                = local.private_ips[each.key]
