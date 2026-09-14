@@ -1,0 +1,45 @@
+# Terraform local and state files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+
+# Terraform variables and secrets
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Azure Export for Terraform (aztfexport)
+aztfexportResourceMapping.json
+aztfexportSkippedResources.txt
+aztfexport*.json
+aztfexport*.txt
+
+# Ansible generated artifacts & cache
+ansible/inventory.ini
+*.retry
+.ansible/
+ansible.log
+
+# Private keys, certificates & environment secrets
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+.env
+.env.*
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
