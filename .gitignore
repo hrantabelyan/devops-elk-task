@@ -24,6 +24,7 @@ aztfexport*.txt
 
 # Ansible generated artifacts & cache
 ansible/inventory.ini
+ansible/.secrets/
 *.retry
 .ansible/
 ansible.log

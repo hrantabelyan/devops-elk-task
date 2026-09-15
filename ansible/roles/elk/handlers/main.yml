@@ -1,0 +1,23 @@
+---
+- name: Restart Elasticsearch service
+  ansible.builtin.service:
+    name: elasticsearch
+    state: restarted
+  listen: Restart Elasticsearch
+
+- name: Wait for Elasticsearch after restart
+  ansible.builtin.wait_for:
+    host: "{{ elk_bind_host }}"
+    port: "{{ elk_elasticsearch_port }}"
+    timeout: 300
+  listen: Restart Elasticsearch
+
+- name: Restart Kibana
+  ansible.builtin.service:
+    name: kibana
+    state: restarted
+
+- name: Restart Logstash
+  ansible.builtin.service:
+    name: logstash
+    state: restarted

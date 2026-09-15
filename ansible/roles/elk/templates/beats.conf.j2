@@ -1,0 +1,36 @@
+# {{ ansible_managed }}
+input {
+  beats {
+    host => "{{ elk_bind_host }}"
+    port => {{ elk_beats_port }}
+  }
+}
+
+# Filebeat modules (such as apache) name an Elasticsearch ingest pipeline in [@metadata][pipeline];
+# passing it on lets Elasticsearch parse the logs exactly as if Filebeat had sent them directly.
+output {
+  if [@metadata][pipeline] {
+    elasticsearch {
+      hosts => ["{{ elk_elasticsearch_url }}"]
+      ssl_enabled => true
+      ssl_certificate_authorities => ["/etc/logstash/certs/http_ca.crt"]
+      user => "{{ elk_logstash_user }}"
+      password => "{{ elk_logstash_writer_password }}"
+      manage_template => false
+      index => "%{[@metadata][beat]}-%{[@metadata][version]}"
+      action => "create"
+      pipeline => "%{[@metadata][pipeline]}"
+    }
+  } else {
+    elasticsearch {
+      hosts => ["{{ elk_elasticsearch_url }}"]
+      ssl_enabled => true
+      ssl_certificate_authorities => ["/etc/logstash/certs/http_ca.crt"]
+      user => "{{ elk_logstash_user }}"
+      password => "{{ elk_logstash_writer_password }}"
+      manage_template => false
+      index => "%{[@metadata][beat]}-%{[@metadata][version]}"
+      action => "create"
+    }
+  }
+}

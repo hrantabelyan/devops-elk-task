@@ -1,0 +1,33 @@
+---
+- name: Create Logstash certificate directory
+  ansible.builtin.file:
+    path: /etc/logstash/certs
+    state: directory
+    owner: root
+    group: logstash
+    mode: "0750"
+
+- name: Trust the Elasticsearch CA in Logstash
+  ansible.builtin.copy:
+    src: "{{ elk_elasticsearch_ca }}"
+    dest: /etc/logstash/certs/http_ca.crt
+    remote_src: true
+    owner: root
+    group: logstash
+    mode: "0640"
+  notify: Restart Logstash
+
+- name: Configure the Beats pipeline
+  ansible.builtin.template:
+    src: beats.conf.j2
+    dest: /etc/logstash/conf.d/beats.conf
+    owner: root
+    group: logstash
+    mode: "0640"
+  notify: Restart Logstash
+
+- name: Start Logstash
+  ansible.builtin.service:
+    name: logstash
+    state: started
+    enabled: true

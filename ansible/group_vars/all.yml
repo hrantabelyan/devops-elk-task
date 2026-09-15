@@ -1,0 +1,12 @@
+---
+# Stack passwords are generated on the first run and kept on this machine in ansible/.secrets/ (gitignored),
+# one file per password, so every later run and every role (Kibana, Logstash, Filebeat) uses the same values.
+elk_elastic_password: >-
+  {{ lookup('ansible.builtin.password', playbook_dir ~ '/.secrets/elastic',
+            length=32, chars=['ascii_letters', 'digits']) }}
+elk_kibana_system_password: >-
+  {{ lookup('ansible.builtin.password', playbook_dir ~ '/.secrets/kibana_system',
+            length=32, chars=['ascii_letters', 'digits']) }}
+elk_logstash_writer_password: >-
+  {{ lookup('ansible.builtin.password', playbook_dir ~ '/.secrets/logstash_internal',
+            length=32, chars=['ascii_letters', 'digits']) }}

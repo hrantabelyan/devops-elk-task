@@ -1,0 +1,113 @@
+---
+- name: Check the elastic password
+  ansible.builtin.uri:
+    url: "{{ elk_elasticsearch_url }}/_security/_authenticate"
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    ca_path: "{{ elk_elasticsearch_ca }}"
+    status_code: [200, 401]
+  register: elk_elastic_auth
+  until: elk_elastic_auth.status in [200, 401]
+  retries: 30
+  delay: 5
+  no_log: true
+
+# The package sets a random elastic password. Reset it once, then replace it with the one kept in .secrets/.
+- name: Set the elastic password
+  when: elk_elastic_auth.status == 401
+  block:
+    - name: Reset the elastic password to a temporary value
+      ansible.builtin.command:
+        cmd: >-
+          /usr/share/elasticsearch/bin/elasticsearch-reset-password
+          --username elastic --batch --silent --url {{ elk_elasticsearch_url }}
+      register: elk_elastic_reset
+      changed_when: true
+      no_log: true
+
+    - name: Replace the temporary elastic password
+      ansible.builtin.uri:
+        url: "{{ elk_elasticsearch_url }}/_security/user/elastic/_password"
+        method: POST
+        url_username: elastic
+        url_password: "{{ elk_elastic_reset.stdout_lines | last | regex_replace('^New value:\\s*', '') | trim }}"
+        force_basic_auth: true
+        ca_path: "{{ elk_elasticsearch_ca }}"
+        body_format: json
+        body:
+          password: "{{ elk_elastic_password }}"
+      changed_when: true
+      no_log: true
+
+- name: Check the kibana_system password
+  ansible.builtin.uri:
+    url: "{{ elk_elasticsearch_url }}/_security/_authenticate"
+    url_username: kibana_system
+    url_password: "{{ elk_kibana_system_password }}"
+    force_basic_auth: true
+    ca_path: "{{ elk_elasticsearch_ca }}"
+    status_code: [200, 401]
+  register: elk_kibana_system_auth
+  no_log: true
+
+- name: Set the kibana_system password
+  ansible.builtin.uri:
+    url: "{{ elk_elasticsearch_url }}/_security/user/kibana_system/_password"
+    method: POST
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    ca_path: "{{ elk_elasticsearch_ca }}"
+    body_format: json
+    body:
+      password: "{{ elk_kibana_system_password }}"
+  when: elk_kibana_system_auth.status == 401
+  changed_when: true
+  no_log: true
+
+- name: Create the Logstash writer role
+  ansible.builtin.uri:
+    url: "{{ elk_elasticsearch_url }}/_security/role/{{ elk_logstash_role }}"
+    method: PUT
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    ca_path: "{{ elk_elasticsearch_ca }}"
+    body_format: json
+    body:
+      cluster: [monitor]
+      indices:
+        - names: ["filebeat-*"]
+          privileges: [create_doc, create_index, auto_configure, view_index_metadata]
+  register: elk_logstash_role_result
+  changed_when: elk_logstash_role_result.json.role.created
+  no_log: true
+
+- name: Check the Logstash writer password
+  ansible.builtin.uri:
+    url: "{{ elk_elasticsearch_url }}/_security/_authenticate"
+    url_username: "{{ elk_logstash_user }}"
+    url_password: "{{ elk_logstash_writer_password }}"
+    force_basic_auth: true
+    ca_path: "{{ elk_elasticsearch_ca }}"
+    status_code: [200, 401]
+  register: elk_logstash_user_auth
+  no_log: true
+
+- name: Create or reset the Logstash writer user
+  ansible.builtin.uri:
+    url: "{{ elk_elasticsearch_url }}/_security/user/{{ elk_logstash_user }}"
+    method: PUT
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    ca_path: "{{ elk_elasticsearch_ca }}"
+    body_format: json
+    body:
+      password: "{{ elk_logstash_writer_password }}"
+      roles: ["{{ elk_logstash_role }}"]
+      full_name: Logstash writer
+  when: elk_logstash_user_auth.status == 401
+  changed_when: true
+  no_log: true

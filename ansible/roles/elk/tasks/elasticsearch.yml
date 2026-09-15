@@ -1,0 +1,70 @@
+---
+- name: Check that the package generated TLS certificates
+  ansible.builtin.stat:
+    path: "/etc/elasticsearch/certs/{{ item }}"
+  loop:
+    - http.p12
+    - transport.p12
+    - http_ca.crt
+  register: elk_autoconfig_certs
+
+- name: Require security auto-configuration output
+  ansible.builtin.assert:
+    that: elk_autoconfig_certs.results | map(attribute='stat.exists') | min
+    fail_msg: >-
+      /etc/elasticsearch/certs is incomplete. The Elasticsearch package normally creates it on first install;
+      reinstall the package on a clean node.
+    quiet: true
+
+# Replaces the auto-configured file entirely, including its "http.host: 0.0.0.0".
+- name: Configure Elasticsearch
+  ansible.builtin.template:
+    src: elasticsearch.yml.j2
+    dest: /etc/elasticsearch/elasticsearch.yml
+    owner: root
+    group: elasticsearch
+    mode: "0660"
+  notify: Restart Elasticsearch
+
+- name: Set Elasticsearch heap size
+  ansible.builtin.template:
+    src: heap.options.j2
+    dest: /etc/elasticsearch/jvm.options.d/heap.options
+    owner: root
+    group: elasticsearch
+    mode: "0660"
+  notify: Restart Elasticsearch
+
+- name: Apply Elasticsearch configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Start Elasticsearch
+  ansible.builtin.service:
+    name: elasticsearch
+    state: started
+    enabled: true
+
+- name: Wait for Elasticsearch to listen
+  ansible.builtin.wait_for:
+    host: "{{ elk_bind_host }}"
+    port: "{{ elk_elasticsearch_port }}"
+    timeout: 300
+
+# The generated HTTP certificate may list the node's hostname but not its private IP.
+# Kibana, Logstash and the checks connect using whichever name the certificate actually covers.
+- name: Fetch the certificate Elasticsearch serves
+  community.crypto.get_certificate:
+    host: "{{ elk_bind_host }}"
+    port: "{{ elk_elasticsearch_port }}"
+  register: elk_es_served_certificate
+
+- name: Read the Elasticsearch certificate
+  community.crypto.x509_certificate_info:
+    content: "{{ elk_es_served_certificate.cert }}"
+  register: elk_es_certificate_info
+
+- name: Choose the Elasticsearch URL that matches its certificate
+  ansible.builtin.set_fact:
+    elk_elasticsearch_url: >-
+      https://{{ elk_bind_host if ('IP:' ~ elk_bind_host) in elk_es_certificate_info.subject_alt_name
+                 else ansible_facts['hostname'] }}:{{ elk_elasticsearch_port }}

@@ -1,0 +1,24 @@
+# {{ ansible_managed }}
+server.host: "{{ elk_bind_host }}"
+server.port: {{ elk_kibana_port }}
+server.publicBaseUrl: "{{ elk_kibana_public_base_url }}"
+
+elasticsearch.hosts: ["{{ elk_elasticsearch_url }}"]
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "{{ elk_kibana_system_password }}"
+elasticsearch.ssl.certificateAuthorities: ["/etc/kibana/certs/http_ca.crt"]
+elasticsearch.ssl.verificationMode: full
+
+logging:
+  appenders:
+    file:
+      type: file
+      fileName: /var/log/kibana/kibana.log
+      layout:
+        type: json
+  root:
+    appenders:
+      - default
+      - file
+
+pid.file: /run/kibana/kibana.pid

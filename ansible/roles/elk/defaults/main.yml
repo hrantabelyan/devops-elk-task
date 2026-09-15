@@ -1,0 +1,21 @@
+---
+elk_version: "9.5.4"
+elk_apt_repository: https://artifacts.elastic.co/packages/9.x/apt
+elk_apt_key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+
+# Every service listens on the private IP only, never on the public interface.
+elk_bind_host: "{{ private_ip | default(ansible_facts['default_ipv4']['address']) }}"
+# Ports come from the Terraform-generated inventory (local.ports), so services match the NSG rules.
+elk_elasticsearch_port: "{{ elasticsearch_port | default(9200) }}"
+elk_beats_port: "{{ beats_port | default(5044) }}"
+elk_kibana_port: "{{ kibana_port | default(5601) }}"
+
+elk_cluster_name: elk
+elk_elasticsearch_heap: 4g
+elk_kibana_public_base_url: "http://{{ ansible_host }}:{{ elk_kibana_port }}"
+
+# Written by the package's security auto-configuration on install.
+elk_elasticsearch_ca: /etc/elasticsearch/certs/http_ca.crt
+
+elk_logstash_role: logstash_writer
+elk_logstash_user: logstash_internal

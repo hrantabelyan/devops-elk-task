@@ -1,0 +1,44 @@
+---
+- name: Install repository and certificate tooling
+  ansible.builtin.apt:
+    name:
+      - python3-debian
+      - python3-cryptography
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Add the Elastic APT repository
+  ansible.builtin.deb822_repository:
+    name: elastic-9.x
+    types: deb
+    uris: "{{ elk_apt_repository }}"
+    suites: stable
+    components: main
+    signed_by: "{{ elk_apt_key }}"
+
+- name: Install Elasticsearch, Kibana and Logstash
+  ansible.builtin.apt:
+    name:
+      - "elasticsearch={{ elk_version }}"
+      - "kibana={{ elk_version }}"
+      - "logstash=1:{{ elk_version }}-1"
+    state: present
+    update_cache: true
+
+- name: Hold stack packages at the installed version
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - elasticsearch
+    - kibana
+    - logstash
+
+- name: Raise vm.max_map_count for Elasticsearch
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "1048576"
+    sysctl_file: /etc/sysctl.d/60-elasticsearch.conf
+    state: present
+    reload: true

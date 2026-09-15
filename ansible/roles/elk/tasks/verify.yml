@@ -1,0 +1,51 @@
+---
+- name: Wait for Logstash to accept Beats connections
+  ansible.builtin.wait_for:
+    host: "{{ elk_bind_host }}"
+    port: "{{ elk_beats_port }}"
+    timeout: 300
+
+- name: Check Elasticsearch cluster health
+  ansible.builtin.uri:
+    url: "{{ elk_elasticsearch_url }}/_cluster/health"
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    ca_path: "{{ elk_elasticsearch_ca }}"
+  register: elk_health
+
+- name: Wait for Kibana to become available
+  ansible.builtin.uri:
+    url: "http://{{ elk_bind_host }}:{{ elk_kibana_port }}/api/status"
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+  register: elk_kibana_status
+  until: elk_kibana_status.status == 200 and elk_kibana_status.json.status.overall.level == 'available'
+  retries: 60
+  delay: 5
+
+- name: List listening TCP sockets
+  ansible.builtin.command: ss -Hltn
+  register: elk_listening
+  changed_when: false
+
+- name: Assert logging server requirements
+  vars:
+    elk_ports: ["{{ elk_elasticsearch_port }}", "{{ elk_beats_port }}", "{{ elk_kibana_port }}"]
+    # Java services report IPv4 listeners in IPv6-mapped form, e.g. [::ffff:172.16.0.12]:9200.
+    elk_local_addresses: >-
+      {{ elk_listening.stdout_lines | map('split') | map(attribute='3')
+         | map('regex_replace', '^\[::ffff:([0-9.]+)\]', '\1') | list }}
+  ansible.builtin.assert:
+    that:
+      - elk_health.json.status in ['green', 'yellow']
+      - elk_kibana_status.json.status.overall.level == 'available'
+      - elk_ports | map('string') | map('regex_replace', '^', elk_bind_host ~ ':') | difference(elk_local_addresses) | length == 0
+      - elk_local_addresses | select('match', '^(0\.0\.0\.0|\[::\]|\*):(' ~ (elk_ports | join('|')) ~ ')$') | list | length == 0
+    fail_msg: >-
+      Expected Elasticsearch, Logstash and Kibana healthy and listening on {{ elk_bind_host }} only
+      ({{ elk_ports | join(', ') }}). Listening: {{ elk_local_addresses | join(' ') }}
+    success_msg: >-
+      Elasticsearch {{ elk_health.json.status }}, Kibana available, and ports {{ elk_ports | join(', ') }}
+      listen on {{ elk_bind_host }} only.

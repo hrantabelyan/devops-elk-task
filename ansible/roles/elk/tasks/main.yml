@@ -1,0 +1,21 @@
+---
+- name: Install Elastic Stack packages
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure and start Elasticsearch
+  ansible.builtin.import_tasks: elasticsearch.yml
+
+- name: Set built-in passwords and the Logstash writer user
+  ansible.builtin.import_tasks: security.yml
+
+- name: Configure and start Kibana
+  ansible.builtin.import_tasks: kibana.yml
+
+- name: Configure and start Logstash
+  ansible.builtin.import_tasks: logstash.yml
+
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify the stack
+  ansible.builtin.import_tasks: verify.yml
