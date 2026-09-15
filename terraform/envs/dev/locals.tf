@@ -61,4 +61,6 @@ locals {
   }
 
   ansible_dir = abspath("${path.module}/../../../ansible")
+  # Host keys Ansible learns for these VMs, kept apart from ~/.ssh/known_hosts and cleared before each Terraform-run playbook.
+  ssh_known_hosts_file = "${local.ansible_dir}/.ssh/known_hosts"
 }

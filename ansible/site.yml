@@ -1,4 +1,22 @@
 ---
+# Tagged always so runs limited to one role also wait. Terraform starts this playbook right after creating the VMs.
+- name: Wait for the servers to finish booting
+  hosts: all
+  gather_facts: false
+  tags: always
+  tasks:
+    - name: Wait for SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 600
+
+    # First-boot setup (users, SSH keys, package sources) must be done before apt runs.
+    - name: Wait for cloud-init
+      ansible.builtin.command: cloud-init status --wait
+      register: cloud_init_status
+      changed_when: false
+      # 2 means cloud-init finished with recoverable errors.
+      failed_when: cloud_init_status.rc not in [0, 2]
+
 - name: Configure logging server
   hosts: elk
   become: true

@@ -15,6 +15,7 @@ resource "local_file" "ansible_inventory" {
       }
     }
     ssh_private_key_file = local_sensitive_file.ssh_private_key.filename
+    ssh_known_hosts_file = local.ssh_known_hosts_file
     ports                = local.ports
   })
 }

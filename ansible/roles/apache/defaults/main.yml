@@ -14,7 +14,7 @@ apache_tls_private_key: "{{ apache_tls_dir }}/server.key"
 apache_acme_directory: https://acme-v02.api.letsencrypt.org/directory
 apache_acme_profile: shortlived
 # Set to true once you have read and accept the Let's Encrypt Subscriber Agreement: https://letsencrypt.org/repository/
-apache_acme_terms_agreed: false
+apache_acme_terms_agreed: true
 apache_acme_contact: []
 apache_acme_dir: /etc/apache2/acme
 apache_acme_account_key: "{{ apache_acme_dir }}/account.key"

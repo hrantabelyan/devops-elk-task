@@ -6,7 +6,7 @@ ${host.name} ansible_host=${host.public_ip} ansible_user=${host.admin_username} 
 %{ endfor ~}
 [all:vars]
 ansible_ssh_private_key_file=${ssh_private_key_file}
-ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new'
+ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${ssh_known_hosts_file}'
 ansible_python_interpreter=/usr/bin/python3
 # Same port numbers the NSG rules were built from.
 %{ for name, port in ports ~}

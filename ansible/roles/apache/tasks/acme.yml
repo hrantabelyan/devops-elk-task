@@ -1,12 +1,4 @@
 ---
-- name: Require agreement to the Let's Encrypt Subscriber Agreement
-  ansible.builtin.assert:
-    that: apache_acme_terms_agreed | bool
-    fail_msg: >-
-      Let's Encrypt requires accepting its Subscriber Agreement (https://letsencrypt.org/repository/).
-      After reading it, set apache_acme_terms_agreed=true, e.g. ansible-playbook site.yml -e apache_acme_terms_agreed=true
-    quiet: true
-
 - name: Create ACME account directory
   ansible.builtin.file:
     path: "{{ apache_acme_dir }}"
