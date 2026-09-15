@@ -48,7 +48,7 @@ Terraform also generates the SSH key and the Ansible inventory from what it crea
     ├── roles/
     │   ├── elastic_repo/  Elastic APT repository, shared by elk and filebeat
     │   ├── elk/           Elasticsearch, Logstash, Kibana 9.x on the private IP, TLS and passwords, self-check
-    │   ├── kibana_dashboard/  Kibana dashboard export (files/apache-web-server.ndjson) and its import
+    │   ├── kibana_dashboard/  Kibana dashboard export (files/apache-web-server.ndjson), re-imported when Kibana differs
     │   ├── filebeat/      apache module shipping to Logstash, ingest pipelines, end-to-end check
     │   └── apache/        HTTPS vhost, Let's Encrypt IP certificate, HTTP redirect, header hardening, self-check
     ├── .secrets/          elastic, kibana_system, logstash_internal passwords, mode 0600 (gitignored)
@@ -61,7 +61,8 @@ Terraform also generates the SSH key and the Ansible inventory from what it crea
 - Azure CLI, logged in to the target subscription
 - Terraform 1.9 or later
 - Storage Blob Data Contributor on the state storage account `tfstate20260914` (container `tfstate`)
-- Ansible on the machine running Terraform: `terraform apply` runs the playbook
+- ansible-core 2.17 or later on the machine running Terraform: `terraform apply` runs the playbook
+- curl and jq, for the commands below
 
 ## Provision the infrastructure
 
@@ -117,14 +118,16 @@ terraform destroy
 
 ## Configure the servers
 
-| Role | Hosts | Responsibility | Status |
-| --- | --- | --- | --- |
-| `apache` | `web` | HTTPS vhost with a Let's Encrypt certificate for the public IP, HTTP to HTTPS redirect, `ServerTokens Prod`, `ServerSignature Off`; ends by checking all of them on the server | Done |
-| `elk` | `elk` | Elasticsearch, Logstash and Kibana 9.5.4 bound to the private IP, Elasticsearch TLS and built-in passwords, Logstash Beats input on 5044; ends by checking health and listening addresses | Done |
-| `filebeat` | `web` | Filebeat 9.5.4 apache module shipping access and error logs to Logstash on `elk` port 5044; loads the module's ingest pipelines; ends by finding a test request, parsed, in Elasticsearch | Done |
-| `kibana_dashboard` | `elk` | Imports the "Apache web server" dashboard: HTTP status codes over time, requests by status code, access logs, error logs | Done |
+`site.yml` first waits for SSH and cloud-init on both VMs, then runs these roles in this order:
 
-The generated inventory has the groups `web` and `elk`, a `private_ip` host variable, and `<service>_port` variables matching the NSG rules. The key file is only there while the infrastructure exists: `terraform destroy` removes it.
+| Role | Hosts | Responsibility |
+| --- | --- | --- |
+| `elk` | `elk` | Elasticsearch, Logstash and Kibana 9.5.4 bound to the private IP, Elasticsearch TLS and built-in passwords, Logstash Beats input on 5044; ends by checking health and listening addresses |
+| `kibana_dashboard` | `elk` | "Apache web server" dashboard: HTTP status codes over time, requests by status code, access logs, error logs; imported when Kibana differs from the export in git |
+| `apache` | `web` | HTTPS vhost with a Let's Encrypt certificate for the public IP, HTTP to HTTPS redirect, `ServerTokens Prod`, `ServerSignature Off`; ends by checking all of them on the server |
+| `filebeat` | `web` | Filebeat 9.5.4 apache module shipping access and error logs to Logstash on `elk` port 5044; loads the module's ingest pipelines; ends by finding a test request, parsed, in Elasticsearch |
+
+The generated inventory has the groups `web` and `elk`, a `private_ip` host variable, and `<service>_port` variables matching the NSG rules. The key file is only there while the infrastructure exists: `terraform destroy` removes it. Ansible keeps the VMs' host keys in `ansible/.ssh/known_hosts`, which Terraform clears before it runs the playbook, because new VMs can get public IPs that older VMs had.
 
 `terraform apply` runs the playbook when it creates or replaces a VM, or when the inventory changes. After changing a role, or to renew the certificate, run it yourself from `ansible/`:
 
@@ -157,6 +160,7 @@ ansible-playbook site.yml --limit web --tags filebeat
 ### TLS certificate
 
 - Let's Encrypt issues certificates for IP addresses only with the `shortlived` profile: valid for 160 hours, about 6.7 days.
+- `apache_acme_terms_agreed: true` in the apache role defaults accepts the Let's Encrypt [Subscriber Agreement](https://letsencrypt.org/repository/) when the ACME account is registered.
 - Validation uses `http-01` on port 80. The port 80 vhost serves `/.well-known/acme-challenge/` and redirects everything else to HTTPS.
 - Apache serves only port 80 until the certificate exists; the HTTPS vhost is enabled right after Let's Encrypt issues it. If issuing fails, the playbook stops and the site has no HTTPS until a later run succeeds.
 - Each run renews the certificate only when it expires within 3 days (`apache_acme_renew_before`), so **run the playbook at least every 3 days** or the site's certificate expires.
