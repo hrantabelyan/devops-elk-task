@@ -1,21 +1,12 @@
 ---
-- name: Install repository and certificate tooling
-  ansible.builtin.apt:
-    name:
-      - python3-debian
-      - python3-cryptography
-    state: present
-    update_cache: true
-    cache_valid_time: 3600
-
 - name: Add the Elastic APT repository
-  ansible.builtin.deb822_repository:
-    name: elastic-9.x
-    types: deb
-    uris: "{{ elk_apt_repository }}"
-    suites: stable
-    components: main
-    signed_by: "{{ elk_apt_key }}"
+  ansible.builtin.import_role:
+    name: elastic_repo
+
+- name: Install certificate tooling
+  ansible.builtin.apt:
+    name: python3-cryptography
+    state: present
 
 - name: Install Elasticsearch, Kibana and Logstash
   ansible.builtin.apt:

@@ -1,7 +1,5 @@
 ---
-elk_version: "9.5.4"
-elk_apt_repository: https://artifacts.elastic.co/packages/9.x/apt
-elk_apt_key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+elk_version: "{{ elastic_stack_version }}"
 
 # Every service listens on the private IP only, never on the public interface.
 elk_bind_host: "{{ private_ip | default(ansible_facts['default_ipv4']['address']) }}"

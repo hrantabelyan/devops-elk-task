@@ -3,10 +3,14 @@
   hosts: elk
   become: true
   roles:
-    - elk
+    - role: elk
+      tags: elk
 
 - name: Configure web server
   hosts: web
   become: true
   roles:
-    - apache
+    - role: apache
+      tags: apache
+    - role: filebeat
+      tags: filebeat

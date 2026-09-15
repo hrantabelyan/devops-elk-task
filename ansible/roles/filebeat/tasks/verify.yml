@@ -1,0 +1,66 @@
+---
+- name: Check Filebeat can reach Logstash
+  ansible.builtin.command: filebeat test output --path.config /etc/filebeat
+  changed_when: false
+
+- name: Mark the start of this check
+  ansible.builtin.set_fact:
+    filebeat_check_epoch: "{{ lookup('ansible.builtin.pipe', 'date +%s') }}"
+
+# A 404 for a unique path: it ends up in access.log and is easy to find in Elasticsearch.
+- name: Request a missing page to write a known access log line
+  ansible.builtin.uri:
+    url: "https://127.0.0.1/filebeat-check-{{ filebeat_check_epoch }}"
+    validate_certs: false
+    status_code: 404
+
+# A graceful reload has no downtime and always logs notice lines to error.log.
+- name: Reload Apache to write known error log lines
+  ansible.builtin.command: apache2ctl graceful
+  changed_when: false
+
+# Events with error.message failed their ingest pipeline; only parsed events count.
+- name: Wait for parsed access and error events from this check
+  ansible.builtin.uri:
+    url: "{{ filebeat_elasticsearch_url }}/filebeat-*/_search"
+    method: POST
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    ca_path: "{{ filebeat_elasticsearch_ca }}"
+    body_format: json
+    body:
+      size: 0
+      query:
+        bool:
+          filter:
+            - range: { "@timestamp": { gte: "{{ filebeat_check_epoch }}", format: epoch_second } }
+          must_not:
+            - exists: { field: error.message }
+      aggs:
+        access_check:
+          filter:
+            bool:
+              filter:
+                - term: { event.dataset: apache.access }
+                - term: { url.original: "/filebeat-check-{{ filebeat_check_epoch }}" }
+                - term: { http.response.status_code: 404 }
+        error:
+          filter: { term: { event.dataset: apache.error } }
+  register: filebeat_check_search
+  until: >-
+    filebeat_check_search.json.aggregations.access_check.doc_count | default(0) > 0
+    and filebeat_check_search.json.aggregations.error.doc_count | default(0) > 0
+  retries: 24
+  delay: 5
+  no_log: true
+
+- name: Assert Apache logs are shipped and parsed
+  ansible.builtin.assert:
+    that:
+      - filebeat_check_search.json.aggregations.access_check.doc_count > 0
+      - filebeat_check_search.json.aggregations.error.doc_count > 0
+    fail_msg: "Expected the check request as a parsed apache.access event (status 404) and parsed apache.error events."
+    success_msg: >-
+      /filebeat-check-{{ filebeat_check_epoch }} arrived parsed as apache.access with status 404, and
+      {{ filebeat_check_search.json.aggregations.error.doc_count }} parsed apache.error events arrived from the reload.

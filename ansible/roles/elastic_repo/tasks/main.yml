@@ -1,0 +1,16 @@
+---
+- name: Install APT repository tooling
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Add the Elastic APT repository
+  ansible.builtin.deb822_repository:
+    name: "elastic-{{ elastic_repo_major }}.x"
+    types: deb
+    uris: "{{ elastic_repo_url }}"
+    suites: stable
+    components: main
+    signed_by: "{{ elastic_repo_key }}"

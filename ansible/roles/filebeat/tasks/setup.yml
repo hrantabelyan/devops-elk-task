@@ -1,0 +1,69 @@
+---
+- name: Create Filebeat certificate directory
+  ansible.builtin.file:
+    path: "{{ filebeat_elasticsearch_ca | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Read the Elasticsearch CA from the logging server
+  ansible.builtin.slurp:
+    src: "{{ filebeat_elasticsearch_ca_source }}"
+  delegate_to: "{{ groups['elk'] | first }}"
+  register: filebeat_elasticsearch_ca_content
+
+- name: Trust the Elasticsearch CA
+  ansible.builtin.copy:
+    content: "{{ filebeat_elasticsearch_ca_content.content | b64decode }}"
+    dest: "{{ filebeat_elasticsearch_ca }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# Logs travel web -> Logstash -> Elasticsearch, but the apache module's parsing (ingest pipelines) and the
+# filebeat-<version> data stream template must exist in Elasticsearch first. Only `filebeat setup` creates them,
+# and it talks to Elasticsearch directly, so Logstash output is switched off for that one command.
+- name: Check for the apache ingest pipelines and index template
+  ansible.builtin.uri:
+    url: "{{ filebeat_elasticsearch_url }}/{{ item }}"
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    ca_path: "{{ filebeat_elasticsearch_ca }}"
+    status_code: [200, 404]
+  loop:
+    - "_ingest/pipeline/filebeat-{{ filebeat_version }}-apache-access-pipeline"
+    - "_ingest/pipeline/filebeat-{{ filebeat_version }}-apache-error-pipeline"
+    - "_index_template/filebeat-{{ filebeat_version }}"
+  register: filebeat_setup_assets
+  no_log: true
+
+- name: Run filebeat setup against Elasticsearch
+  ansible.builtin.command:
+    argv:
+      - filebeat
+      - setup
+      - --path.config
+      - /etc/filebeat
+      - --index-management
+      - --pipelines
+      - --modules
+      - apache
+      # --modules builds the module config from this flag, where filesets start disabled.
+      - --force-enable-module-filesets
+      - -E
+      - output.logstash.enabled=false
+      - -E
+      - "output.elasticsearch.hosts=[\"{{ filebeat_elasticsearch_url }}\"]"
+      - -E
+      - output.elasticsearch.username=elastic
+      - -E
+      - "output.elasticsearch.password=${FILEBEAT_SETUP_PASSWORD}"
+      - -E
+      - "output.elasticsearch.ssl.certificate_authorities=[\"{{ filebeat_elasticsearch_ca }}\"]"
+  environment:
+    FILEBEAT_SETUP_PASSWORD: "{{ elk_elastic_password }}"
+  when: filebeat_setup_assets.results | selectattr('status', 'equalto', 404) | list | length > 0
+  changed_when: true
+  no_log: true

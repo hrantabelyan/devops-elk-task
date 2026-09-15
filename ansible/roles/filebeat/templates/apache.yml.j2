@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+- module: apache
+  access:
+    enabled: true
+    var.paths: {{ filebeat_apache_access_paths | to_json }}
+  error:
+    enabled: true
+    var.paths: {{ filebeat_apache_error_paths | to_json }}

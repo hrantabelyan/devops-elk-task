@@ -1,0 +1,15 @@
+---
+filebeat_version: "{{ elastic_stack_version }}"
+
+# Filebeat ships to Logstash on the logging server's private IP, which the NSG allows from web.
+filebeat_elk_host: "{{ hostvars[groups['elk'] | first]['private_ip'] }}"
+filebeat_logstash_port: "{{ beats_port | default(5044) }}"
+# Used only by `filebeat setup`, which loads the apache ingest pipelines and index template into Elasticsearch.
+filebeat_elasticsearch_url: "https://{{ filebeat_elk_host }}:{{ elasticsearch_port | default(9200) }}"
+filebeat_elasticsearch_ca_source: /etc/elasticsearch/certs/http_ca.crt
+filebeat_elasticsearch_ca: /etc/filebeat/certs/http_ca.crt
+
+filebeat_apache_access_paths:
+  - /var/log/apache2/access.log*
+filebeat_apache_error_paths:
+  - /var/log/apache2/error.log*

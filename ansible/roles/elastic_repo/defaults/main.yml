@@ -1,0 +1,4 @@
+---
+elastic_repo_major: "{{ elastic_stack_version.split('.') | first }}"
+elastic_repo_url: "https://artifacts.elastic.co/packages/{{ elastic_repo_major }}.x/apt"
+elastic_repo_key: https://artifacts.elastic.co/GPG-KEY-elasticsearch

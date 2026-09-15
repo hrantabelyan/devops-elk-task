@@ -3,6 +3,10 @@ input {
   beats {
     host => "{{ elk_bind_host }}"
     port => {{ elk_beats_port }}
+    # With ECS enabled (the default), codec_metadata copies the raw line into [event][original]. The apache
+    # module's ingest pipeline sets that field itself and rejects the event if it exists ("field [event.original]
+    # already exists"), so only source metadata is added here.
+    enrich => [source_metadata]
   }
 }
 

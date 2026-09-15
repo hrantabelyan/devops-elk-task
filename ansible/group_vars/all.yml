@@ -1,4 +1,7 @@
 ---
+# One version for every Elastic component: Elasticsearch, Logstash and Kibana on elk, Filebeat on web.
+elastic_stack_version: "9.5.4"
+
 # Stack passwords are generated on the first run and kept on this machine in ansible/.secrets/ (gitignored),
 # one file per password, so every later run and every role (Kibana, Logstash, Filebeat) uses the same values.
 elk_elastic_password: >-

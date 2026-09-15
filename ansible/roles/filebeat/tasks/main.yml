@@ -1,0 +1,49 @@
+---
+- name: Add the Elastic APT repository
+  ansible.builtin.import_role:
+    name: elastic_repo
+
+- name: Install Filebeat
+  ansible.builtin.apt:
+    name: "filebeat={{ filebeat_version }}"
+    state: present
+    update_cache: true
+
+- name: Hold Filebeat at the installed version
+  ansible.builtin.dpkg_selections:
+    name: filebeat
+    selection: hold
+
+- name: Configure Filebeat
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: "0600"
+    validate: filebeat test config --path.config /etc/filebeat -c %s
+  notify: Restart Filebeat
+
+- name: Enable the apache module
+  ansible.builtin.template:
+    src: apache.yml.j2
+    dest: /etc/filebeat/modules.d/apache.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Filebeat
+
+- name: Load ingest pipelines and index template
+  ansible.builtin.import_tasks: setup.yml
+
+- name: Start Filebeat
+  ansible.builtin.service:
+    name: filebeat
+    state: started
+    enabled: true
+
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify logs arrive in Elasticsearch
+  ansible.builtin.import_tasks: verify.yml
