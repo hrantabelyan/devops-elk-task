@@ -1,6 +1,6 @@
 # ELK + Apache on Azure
 
-Two Ubuntu 24.04 VMs on Azure. One runs a hardened Apache web server and ships its logs with Filebeat; the other runs Elasticsearch, Logstash and Kibana, receives those logs and shows them on a dashboard. Terraform provisions the infrastructure, Ansible configures the servers.
+Two Ubuntu 24.04 VMs on Azure. One runs a hardened Apache web server and ships its logs with Filebeat; the other runs Elasticsearch, Logstash and Kibana, receives those logs and shows them on a dashboard. A single `terraform apply` builds everything: Terraform creates the infrastructure, then its `local-exec` provisioner runs Ansible, which installs and configures the ELK stack, Apache and Filebeat.
 
 ## Goal
 
@@ -27,7 +27,21 @@ Two Ubuntu 24.04 VMs on Azure. One runs a hardened Apache web server and ships i
            22 from your IP                           22, 5601 from your IP
 ```
 
-Terraform also generates the SSH key and the Ansible inventory from what it created, so IPs and keys are never copied by hand, and then runs the Ansible playbook on the new VMs.
+What `terraform apply` does, in order:
+
+```
+terraform apply
+  ├─ Azure: VNet, subnet, NSGs, public IPs, VMs
+  ├─ SSH key    → ansible/.ssh/id_ed25519
+  ├─ inventory  → ansible/inventory.ini (IPs, ports, key path from what Terraform created)
+  └─ terraform_data.ansible, local-exec provisioner
+       └─ ansible-playbook site.yml
+            ├─ wait for SSH and cloud-init on both VMs
+            ├─ elk: install Elasticsearch, Logstash, Kibana; import the dashboard
+            └─ web: install Apache with HTTPS and a Let's Encrypt certificate; install Filebeat
+```
+
+IPs and keys are never copied by hand: Ansible reads the inventory and key Terraform just wrote.
 
 ## Repository layout
 
@@ -39,7 +53,7 @@ Terraform also generates the SSH key and the Ansible inventory from what it crea
 │   │   ├── nsg/      network security group and inbound rules
 │   │   └── vm/       public IP, network interface, NSG association, Linux VM
 │   └── envs/
-│       └── dev/      dev environment: state backend, settings, module calls, SSH key, inventory, Ansible run
+│       └── dev/      dev environment: state backend, settings, module calls, SSH key, inventory, local-exec provisioner running Ansible (ansible.tf)
 └── ansible/
     ├── ansible.cfg        uses inventory.ini and roles/ from this folder
     ├── requirements.yml   community.crypto (Let's Encrypt ACME, certificates), ansible.posix (sysctl)
@@ -94,7 +108,7 @@ Initialise. State is stored in Azure Storage under `elk/dev/terraform.tfstate`:
 terraform init
 ```
 
-Review the changes, then apply. Apply creates the VMs, then runs `ansible/site.yml` on them, which takes several minutes. If the playbook fails, the VMs stay and the next `terraform apply` runs it again:
+Review the changes, then apply. Apply creates the VMs, then the `local-exec` provisioner in `ansible.tf` runs `ansible-playbook site.yml`, which installs the ELK stack on `elk` and Apache and Filebeat on `web`. The Ansible output streams into the apply output and the whole run takes several minutes. If the playbook fails, the VMs stay and the next `terraform apply` runs it again:
 
 ```bash
 terraform plan
@@ -129,7 +143,7 @@ terraform destroy
 
 The generated inventory has the groups `web` and `elk`, a `private_ip` host variable, and `<service>_port` variables matching the NSG rules. The key file is only there while the infrastructure exists: `terraform destroy` removes it. Ansible keeps the VMs' host keys in `ansible/.ssh/known_hosts`, which Terraform clears before it runs the playbook, because new VMs can get public IPs that older VMs had.
 
-`terraform apply` runs the playbook when it creates or replaces a VM, or when the inventory changes. After changing a role, or to renew the certificate, run it yourself from `ansible/`:
+The Terraform provisioner runs the playbook only when a VM is created or replaced, or the inventory changes. After changing a role, or to renew the certificate, run it yourself from `ansible/`:
 
 ```bash
 cd ansible
