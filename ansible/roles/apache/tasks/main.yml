@@ -17,9 +17,6 @@
     - rewrite
   notify: Reload Apache
 
-- name: Create self-signed bootstrap certificate
-  ansible.builtin.import_tasks: tls.yml
-
 - name: Hide Apache version and OS in headers and error pages
   ansible.builtin.lineinfile:
     path: /etc/apache2/conf-available/security.conf
@@ -74,15 +71,6 @@
     - default-ssl
   notify: Reload Apache
 
-- name: Enable virtual hosts
-  ansible.builtin.command:
-    cmd: "a2ensite {{ item }}"
-    creates: "/etc/apache2/sites-enabled/{{ item }}.conf"
-  loop:
-    - http-redirect
-    - https-site
-  notify: Reload Apache
-
 - name: Replace the Ubuntu default page
   ansible.builtin.template:
     src: index.html.j2
@@ -91,18 +79,34 @@
     group: root
     mode: "0644"
 
+# Apache refuses to start while an enabled vhost points at a missing certificate file, and Let's Encrypt
+# checks the http-01 challenge over port 80. So only the HTTP vhost runs until the certificate exists.
+- name: Enable the HTTP virtual host
+  ansible.builtin.command:
+    cmd: a2ensite http-redirect
+    creates: /etc/apache2/sites-enabled/http-redirect.conf
+  notify: Reload Apache
+
 - name: Ensure Apache is running and enabled
   ansible.builtin.service:
     name: apache2
     state: started
     enabled: true
 
-# Apache must be answering on port 80 before Let's Encrypt can check the http-01 challenge.
 - name: Apply pending configuration changes
   ansible.builtin.meta: flush_handlers
 
 - name: Issue or renew the Let's Encrypt certificate
   ansible.builtin.import_tasks: acme.yml
+
+- name: Enable the HTTPS virtual host
+  ansible.builtin.command:
+    cmd: a2ensite https-site
+    creates: /etc/apache2/sites-enabled/https-site.conf
+  notify: Reload Apache
+
+- name: Apply the certificate and the HTTPS virtual host
+  ansible.builtin.meta: flush_handlers
 
 - name: Verify redirect, HTTPS, certificate and hardening
   ansible.builtin.import_tasks: verify.yml

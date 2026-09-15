@@ -164,7 +164,7 @@ The site is then at `https://<web public IP>`, with the IP from `terraform outpu
 
 - Let's Encrypt issues certificates for IP addresses only with the `shortlived` profile: valid for 160 hours, about 6.7 days.
 - Validation uses `http-01` on port 80. The port 80 vhost serves `/.well-known/acme-challenge/` and redirects everything else to HTTPS.
-- Apache starts with a self-signed certificate, which is replaced once Let's Encrypt has issued one.
+- Apache serves only port 80 until the certificate exists; the HTTPS vhost is enabled right after Let's Encrypt issues it. If issuing fails, the playbook stops and the site has no HTTPS until a later run succeeds.
 - Each run renews the certificate only when it expires within 3 days (`apache_acme_renew_before`), so **run the playbook at least every 3 days** or the site's certificate expires.
 - While testing, point `apache_acme_directory` at `https://acme-staging-v02.api.letsencrypt.org/directory` to avoid production rate limits. Staging certificates are not trusted by browsers.
 

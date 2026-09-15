@@ -32,6 +32,21 @@
     terms_agreed: "{{ apache_acme_terms_agreed | bool }}"
     contact: "{{ apache_acme_contact }}"
 
+- name: Create TLS directory
+  ansible.builtin.file:
+    path: "{{ apache_tls_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Generate TLS private key
+  community.crypto.openssl_privatekey:
+    path: "{{ apache_tls_private_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+
 - name: Check for an existing Let's Encrypt certificate
   ansible.builtin.stat:
     path: "{{ apache_acme_certificate }}"
@@ -110,13 +125,3 @@
       loop_control:
         label: "{{ item.identifier }}"
       when: "'http-01' in item.challenges"
-
-- name: Serve the Let's Encrypt certificate
-  ansible.builtin.file:
-    src: "{{ apache_acme_certificate }}"
-    dest: "{{ apache_tls_certificate }}"
-    state: link
-  notify: Reload Apache
-
-- name: Apply the certificate
-  ansible.builtin.meta: flush_handlers

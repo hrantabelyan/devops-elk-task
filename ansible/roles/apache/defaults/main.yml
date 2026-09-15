@@ -8,16 +8,6 @@ apache_document_root: /var/www/html
 
 apache_tls_dir: /etc/apache2/tls
 apache_tls_private_key: "{{ apache_tls_dir }}/server.key"
-# The HTTPS vhost always reads this symlink: it points to the Let's Encrypt certificate,
-# or to the self-signed one until the first Let's Encrypt certificate exists.
-apache_tls_certificate: "{{ apache_tls_dir }}/server.crt"
-
-apache_tls_selfsigned_certificate: "{{ apache_tls_dir }}/selfsigned.crt"
-apache_tls_selfsigned_valid_days: 365
-apache_tls_selfsigned_subject_alt_names:
-  - "DNS:{{ apache_server_name }}"
-  - "IP:{{ ansible_host }}"
-  - "IP:{{ private_ip | default(ansible_facts['default_ipv4']['address']) }}"
 
 # Let's Encrypt certificate for the public IP. IP certificates require the shortlived profile (160 hours).
 # While testing, use https://acme-staging-v02.api.letsencrypt.org/directory to stay clear of rate limits.
@@ -29,6 +19,7 @@ apache_acme_contact: []
 apache_acme_dir: /etc/apache2/acme
 apache_acme_account_key: "{{ apache_acme_dir }}/account.key"
 apache_acme_webroot: /var/www/acme
+# The HTTPS vhost serves this file, so it is enabled only once the file exists.
 apache_acme_certificate: "{{ apache_tls_dir }}/letsencrypt-fullchain.crt"
 # Re-issue when the certificate would no longer be valid this far ahead. Run the playbook more often than this.
 apache_acme_renew_before: "+3d"
