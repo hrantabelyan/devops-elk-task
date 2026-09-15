@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+{% set https_port_suffix = '' if apache_https_port | int == 443 else ':' ~ apache_https_port %}
+# Plain HTTP only answers Let's Encrypt http-01 challenges; every other request is
+# permanently redirected to the same host and path over HTTPS.
+<VirtualHost *:{{ apache_http_port }}>
+    ServerName {{ apache_server_name }}
+
+    Alias /.well-known/acme-challenge/ {{ apache_acme_webroot }}/.well-known/acme-challenge/
+    <Directory {{ apache_acme_webroot }}/.well-known/acme-challenge>
+        Options None
+        AllowOverride None
+        Require all granted
+    </Directory>
+
+    RewriteEngine On
+    RewriteRule ^/\.well-known/acme-challenge/ - [L]
+    # Keep the host the client used, without any port it sent.
+    RewriteCond %{HTTP_HOST} ^([^:]+)
+    RewriteRule ^ https://%1{{ https_port_suffix }}%{REQUEST_URI} [R=301,L]
+    # Requests without a Host header go to the public address.
+    RewriteRule ^ https://{{ ansible_host }}{{ https_port_suffix }}%{REQUEST_URI} [R=301,L]
+
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>

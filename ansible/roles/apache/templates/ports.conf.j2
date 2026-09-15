@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+Listen {{ apache_http_port }}
+
+<IfModule ssl_module>
+    Listen {{ apache_https_port }}
+</IfModule>

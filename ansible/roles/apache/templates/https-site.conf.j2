@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+<VirtualHost *:{{ apache_https_port }}>
+    ServerName {{ apache_server_name }}
+    DocumentRoot {{ apache_document_root }}
+
+    SSLEngine on
+    SSLProtocol -all +TLSv1.2 +TLSv1.3
+    SSLCertificateFile {{ apache_tls_certificate }}
+    SSLCertificateKeyFile {{ apache_tls_private_key }}
+
+    <Directory {{ apache_document_root }}>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+    </Directory>
+
+    # Default log paths, which Filebeat's apache module reads.
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>

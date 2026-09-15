@@ -1,0 +1,108 @@
+---
+- name: Install Apache and TLS tooling
+  ansible.builtin.apt:
+    name:
+      - apache2
+      - python3-cryptography
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable required Apache modules
+  ansible.builtin.command:
+    cmd: "a2enmod {{ item }}"
+    creates: "/etc/apache2/mods-enabled/{{ item }}.load"
+  loop:
+    - ssl
+    - rewrite
+  notify: Reload Apache
+
+- name: Create self-signed bootstrap certificate
+  ansible.builtin.import_tasks: tls.yml
+
+- name: Hide Apache version and OS in headers and error pages
+  ansible.builtin.lineinfile:
+    path: /etc/apache2/conf-available/security.conf
+    regexp: "^{{ item.directive }}\\s"
+    line: "{{ item.directive }} {{ item.value }}"
+  loop:
+    - { directive: ServerTokens, value: Prod }
+    - { directive: ServerSignature, value: "Off" }
+  notify: Reload Apache
+
+- name: Enable security configuration
+  ansible.builtin.command:
+    cmd: a2enconf security
+    creates: /etc/apache2/conf-enabled/security.conf
+  notify: Reload Apache
+
+- name: Create ACME challenge directory
+  ansible.builtin.file:
+    path: "{{ apache_acme_webroot }}/.well-known/acme-challenge"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure listening ports
+  ansible.builtin.template:
+    src: ports.conf.j2
+    dest: /etc/apache2/ports.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Apache
+
+- name: Install virtual hosts
+  ansible.builtin.template:
+    src: "{{ item }}.conf.j2"
+    dest: "/etc/apache2/sites-available/{{ item }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - http-redirect
+    - https-site
+  notify: Reload Apache
+
+- name: Disable Ubuntu default sites
+  ansible.builtin.command:
+    cmd: "a2dissite {{ item }}"
+    removes: "/etc/apache2/sites-enabled/{{ item }}.conf"
+  loop:
+    - 000-default
+    - default-ssl
+  notify: Reload Apache
+
+- name: Enable virtual hosts
+  ansible.builtin.command:
+    cmd: "a2ensite {{ item }}"
+    creates: "/etc/apache2/sites-enabled/{{ item }}.conf"
+  loop:
+    - http-redirect
+    - https-site
+  notify: Reload Apache
+
+- name: Replace the Ubuntu default page
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ apache_document_root }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure Apache is running and enabled
+  ansible.builtin.service:
+    name: apache2
+    state: started
+    enabled: true
+
+# Apache must be answering on port 80 before Let's Encrypt can check the http-01 challenge.
+- name: Apply pending configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Issue or renew the Let's Encrypt certificate
+  ansible.builtin.import_tasks: acme.yml
+
+- name: Verify redirect, HTTPS, certificate and hardening
+  ansible.builtin.import_tasks: verify.yml

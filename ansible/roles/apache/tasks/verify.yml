@@ -1,0 +1,56 @@
+---
+# Runs on the web server itself against 127.0.0.1, so it checks Apache, not the NSG.
+- name: Request the site over HTTP
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ apache_http_port }}/"
+    follow_redirects: none
+    status_code: 301
+  register: apache_http_check
+
+- name: Request an ACME challenge path over HTTP
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ apache_http_port }}/.well-known/acme-challenge/ansible-check"
+    follow_redirects: none
+    status_code: 404
+
+- name: Request the site over HTTPS
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ apache_https_port }}/"
+    validate_certs: false
+    status_code: 200
+  register: apache_https_check
+
+- name: Request a missing page over HTTPS
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ apache_https_port }}/ansible-signature-check"
+    validate_certs: false
+    status_code: 404
+    return_content: true
+  register: apache_404_check
+
+- name: Fetch the certificate Apache serves
+  community.crypto.get_certificate:
+    host: 127.0.0.1
+    port: "{{ apache_https_port }}"
+  register: apache_served_certificate
+
+- name: Read the served certificate
+  community.crypto.x509_certificate_info:
+    content: "{{ apache_served_certificate.cert }}"
+  register: apache_served_certificate_info
+
+- name: Assert web server requirements
+  ansible.builtin.assert:
+    that:
+      - apache_http_check.location is match('^https://')
+      - apache_https_check.server == 'Apache'
+      - "'Server at' not in apache_404_check.content"
+      - apache_served_certificate_info.issuer.organizationName | default('') is search('Encrypt')
+      - ('IP:' ~ ansible_host) in apache_served_certificate_info.subject_alt_name
+    fail_msg: >-
+      Expected: HTTP 301 to https (ACME path excepted), Server header 'Apache' only, no signature on error pages,
+      and a Let's Encrypt certificate for {{ ansible_host }}.
+    success_msg: >-
+      HTTP redirects to HTTPS, Server header is 'Apache', error pages carry no signature,
+      and Apache serves a certificate from {{ apache_served_certificate_info.issuer.organizationName }}
+      for {{ ansible_host }}, valid until {{ apache_served_certificate_info.not_after }}.

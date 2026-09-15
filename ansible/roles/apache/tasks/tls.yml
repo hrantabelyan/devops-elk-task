@@ -1,0 +1,48 @@
+---
+# A self-signed certificate lets the HTTPS vhost start before Let's Encrypt has issued one.
+- name: Create TLS directory
+  ansible.builtin.file:
+    path: "{{ apache_tls_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Generate TLS private key
+  community.crypto.openssl_privatekey:
+    path: "{{ apache_tls_private_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Build self-signed certificate signing request
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ apache_tls_private_key }}"
+    common_name: "{{ apache_server_name }}"
+    subject_alt_name: "{{ apache_tls_selfsigned_subject_alt_names }}"
+  register: apache_selfsigned_csr
+  changed_when: false
+
+- name: Issue self-signed certificate
+  community.crypto.x509_certificate:
+    path: "{{ apache_tls_selfsigned_certificate }}"
+    csr_content: "{{ apache_selfsigned_csr.csr }}"
+    privatekey_path: "{{ apache_tls_private_key }}"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ apache_tls_selfsigned_valid_days }}d"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check which certificate Apache serves
+  ansible.builtin.stat:
+    path: "{{ apache_tls_certificate }}"
+  register: apache_tls_certificate_link
+
+- name: Serve the self-signed certificate until Let's Encrypt has issued one
+  ansible.builtin.file:
+    src: "{{ apache_tls_selfsigned_certificate }}"
+    dest: "{{ apache_tls_certificate }}"
+    state: link
+  when: not apache_tls_certificate_link.stat.exists
+  notify: Reload Apache

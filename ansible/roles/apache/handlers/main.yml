@@ -1,0 +1,12 @@
+---
+# Both handlers listen on "Reload Apache" and run in this order: a broken config never gets loaded.
+- name: Validate Apache configuration
+  ansible.builtin.command: apache2ctl configtest
+  changed_when: false
+  listen: Reload Apache
+
+- name: Reload Apache service
+  ansible.builtin.service:
+    name: apache2
+    state: reloaded
+  listen: Reload Apache
