@@ -1,0 +1,32 @@
+---
+# Returns 200 with the dashboard and everything it references, or 400 when the dashboard does not exist.
+- name: Export the dashboard with everything it references
+  ansible.builtin.uri:
+    url: "{{ kibana_dashboard_kibana_url }}/api/saved_objects/_export"
+    method: POST
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    headers:
+      kbn-xsrf: "true"
+    body_format: json
+    body:
+      objects:
+        - type: dashboard
+          id: "{{ kibana_dashboard_id }}"
+      includeReferencesDeep: true
+      excludeExportDetails: true
+    return_content: true
+    status_code: [200, 400]
+  register: kibana_dashboard_export
+  until: kibana_dashboard_export.status in [200, 400]
+  retries: 30
+  delay: 5
+  no_log: true
+
+- name: Normalise the exported objects for comparison
+  ansible.builtin.set_fact:
+    kibana_dashboard_current: >-
+      {{ (kibana_dashboard_export.content.splitlines() if kibana_dashboard_export.status == 200 else [])
+         | select | map('from_json') | map('dict2items') | map('rejectattr', 'key', 'in', kibana_dashboard_instance_keys)
+         | map('items2dict') | sort(attribute='id') }}

@@ -5,6 +5,8 @@
   roles:
     - role: elk
       tags: elk
+    - role: kibana_dashboard
+      tags: kibana_dashboard
 
 - name: Configure web server
   hosts: web

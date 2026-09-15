@@ -1,0 +1,8 @@
+---
+# Kibana is reached from the elk node itself on its private IP; the public URL is only printed for you.
+kibana_dashboard_kibana_url: "http://{{ private_ip | default(ansible_facts['default_ipv4']['address']) }}:{{ kibana_port | default(5601) }}"
+kibana_dashboard_public_url: "http://{{ ansible_host }}:{{ kibana_port | default(5601) }}"
+
+# Exported from Kibana with its data view, Lens charts and saved searches (see the README to update it).
+kibana_dashboard_id: apache-web-server
+kibana_dashboard_file: apache-web-server.ndjson

@@ -1,0 +1,9 @@
+---
+# Per-instance fields Kibana adds to every exported object. They differ between clusters and runs,
+# so they are ignored when comparing Kibana with the file in git.
+kibana_dashboard_instance_keys: [created_at, created_by, updated_at, updated_by, version]
+
+kibana_dashboard_wanted: >-
+  {{ lookup('ansible.builtin.file', kibana_dashboard_file).splitlines() | select | map('from_json')
+     | map('dict2items') | map('rejectattr', 'key', 'in', kibana_dashboard_instance_keys) | map('items2dict')
+     | sort(attribute='id') }}

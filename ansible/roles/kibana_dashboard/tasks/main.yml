@@ -1,0 +1,45 @@
+---
+# Git is the source of truth: Kibana is compared with the export in files/ on every run and
+# re-imported when they differ, which also undoes edits made in the Kibana UI.
+
+- name: Export the dashboard from Kibana
+  ansible.builtin.import_tasks: export.yml
+
+- name: Compare Kibana with the dashboard in git
+  ansible.builtin.set_fact:
+    kibana_dashboard_differs: "{{ kibana_dashboard_current != kibana_dashboard_wanted }}"
+
+- name: Import the dashboard when Kibana differs from git
+  ansible.builtin.uri:
+    url: "{{ kibana_dashboard_kibana_url }}/api/saved_objects/_import?overwrite=true"
+    method: POST
+    url_username: elastic
+    url_password: "{{ elk_elastic_password }}"
+    force_basic_auth: true
+    headers:
+      kbn-xsrf: "true"
+    body_format: form-multipart
+    body:
+      file:
+        # Read on the controller (this repo), like every multipart upload in the uri module.
+        filename: "{{ role_path }}/files/{{ kibana_dashboard_file }}"
+        mime_type: application/ndjson
+  register: kibana_dashboard_import
+  when: kibana_dashboard_differs | bool
+  changed_when: true
+  failed_when: not (kibana_dashboard_import.json.success | default(false))
+  no_log: true
+
+- name: Export the dashboard again after importing
+  ansible.builtin.import_tasks: export.yml
+  when: kibana_dashboard_differs | bool
+
+- name: Assert Kibana matches the dashboard in git
+  ansible.builtin.assert:
+    that: kibana_dashboard_current == kibana_dashboard_wanted
+    fail_msg: >-
+      Kibana differs from {{ kibana_dashboard_file }}. Objects in Kibana:
+      {{ kibana_dashboard_current | map(attribute='id') | join(', ') | default('none', true) }}
+    success_msg: >-
+      Kibana matches {{ kibana_dashboard_file }} ({{ kibana_dashboard_wanted | length }} objects):
+      {{ kibana_dashboard_public_url }}/app/dashboards#/view/{{ kibana_dashboard_id }}

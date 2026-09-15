@@ -43,11 +43,12 @@ Terraform also generates the SSH key and the Ansible inventory from what it crea
 └── ansible/
     ├── ansible.cfg        uses inventory.ini and roles/ from this folder
     ├── requirements.yml   community.crypto (Let's Encrypt ACME, certificates), ansible.posix (sysctl)
-    ├── site.yml           elk play (elk role), then web play (apache, filebeat roles); each role is also a tag
+    ├── site.yml           elk play (elk, kibana_dashboard roles), then web play (apache, filebeat roles); each role is also a tag
     ├── group_vars/all.yml Elastic Stack version and passwords (generated into .secrets/ on first run)
     ├── roles/
     │   ├── elastic_repo/  Elastic APT repository, shared by elk and filebeat
     │   ├── elk/           Elasticsearch, Logstash, Kibana 9.x on the private IP, TLS and passwords, self-check
+    │   ├── kibana_dashboard/  Kibana dashboard export (files/apache-web-server.ndjson) and its import
     │   ├── filebeat/      apache module shipping to Logstash, ingest pipelines, end-to-end check
     │   └── apache/        HTTPS vhost, Let's Encrypt IP certificate, HTTP redirect, header hardening, self-check
     ├── .secrets/          elastic, kibana_system, logstash_internal passwords, mode 0600 (gitignored)
@@ -121,7 +122,7 @@ terraform destroy
 | `apache` | `web` | HTTPS vhost with a Let's Encrypt certificate for the public IP, HTTP to HTTPS redirect, `ServerTokens Prod`, `ServerSignature Off`; ends by checking all of them on the server | Done |
 | `elk` | `elk` | Elasticsearch, Logstash and Kibana 9.5.4 bound to the private IP, Elasticsearch TLS and built-in passwords, Logstash Beats input on 5044; ends by checking health and listening addresses | Done |
 | `filebeat` | `web` | Filebeat 9.5.4 apache module shipping access and error logs to Logstash on `elk` port 5044; loads the module's ingest pipelines; ends by finding a test request, parsed, in Elasticsearch | Done |
-| Kibana dashboard | `elk` | HTTP status codes, access logs, error logs | Next |
+| `kibana_dashboard` | `elk` | Imports the "Apache web server" dashboard: HTTP status codes over time, requests by status code, access logs, error logs | Done |
 
 The generated inventory has the groups `web` and `elk`, a `private_ip` host variable, and `<service>_port` variables matching the NSG rules. The key file is only there while the infrastructure exists: `terraform destroy` removes it.
 
@@ -143,7 +144,7 @@ Configure the logging server:
 ansible-playbook site.yml --limit elk
 ```
 
-Kibana is then at `http://<elk public IP>:5601` from your IP. Log in as `elastic` with the password in `ansible/.secrets/elastic`.
+Kibana is then at `http://<elk public IP>:5601` from your IP. Log in as `elastic` with the password in `ansible/.secrets/elastic`. The dashboard is at `http://<elk public IP>:5601/app/dashboards#/view/apache-web-server`.
 
 Configure the web server. Let's Encrypt requires accepting its [Subscriber Agreement](https://letsencrypt.org/repository/); passing `apache_acme_terms_agreed=true` records that you do:
 
@@ -166,3 +167,13 @@ The site is then at `https://<web public IP>`, with the IP from `terraform outpu
 - Apache starts with a self-signed certificate, which is replaced once Let's Encrypt has issued one.
 - Each run renews the certificate only when it expires within 3 days (`apache_acme_renew_before`), so **run the playbook at least every 3 days** or the site's certificate expires.
 - While testing, point `apache_acme_directory` at `https://acme-staging-v02.api.letsencrypt.org/directory` to avoid production rate limits. Staging certificates are not trusted by browsers.
+
+### Kibana dashboard
+
+The dashboard lives in git as a Kibana export, `ansible/roles/kibana_dashboard/files/apache-web-server.ndjson`: one data view (`filebeat-*`), two Lens charts, two saved searches and the dashboard. On every run the role exports the dashboard from Kibana, compares it with this file (ignoring per-instance fields such as timestamps) and re-imports the file when they differ. It comes back after every rebuild, and edits made only in the Kibana UI are overwritten.
+
+To change it, edit the dashboard in Kibana, save, then export it over the file from `ansible/` before the next playbook run:
+
+```bash
+curl -s -u "elastic:$(cat .secrets/elastic)" -H 'kbn-xsrf: true' -H 'Content-Type: application/json' -X POST "http://<elk public IP>:5601/api/saved_objects/_export" -d '{"objects":[{"type":"dashboard","id":"apache-web-server"}],"includeReferencesDeep":true,"excludeExportDetails":true}' | jq -c 'del(.updated_at, .created_at, .version, .updated_by, .created_by)' > roles/kibana_dashboard/files/apache-web-server.ndjson
+```
