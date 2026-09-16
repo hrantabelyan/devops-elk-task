@@ -1,8 +1,8 @@
 locals {
   project     = "devops-bank"
   environment = "dev"
-  location    = "swedencentral"
-  zone        = "2"
+  location    = "israelcentral"
+  zone        = "1"
 
   # Base for every Azure name, e.g. devops-bank-dev-web.
   name = "${local.project}-${local.environment}"
