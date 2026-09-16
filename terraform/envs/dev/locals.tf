@@ -2,7 +2,7 @@ locals {
   project     = "devops-bank"
   environment = "dev"
   location    = "swedencentral"
-  zone        = "1"
+  zone        = "2"
 
   # Base for every Azure name, e.g. devops-bank-dev-web.
   name = "${local.project}-${local.environment}"
@@ -48,8 +48,8 @@ locals {
         "Elasticsearch-from-web" = { priority = 110, ports = [local.ports.elasticsearch], source = "${local.private_ips.web}/32" }
         "SSH-from-operator"      = { priority = 200, ports = [local.ports.ssh], source = var.operator_ip }
         "Kibana-from-operator"   = { priority = 210, ports = [local.ports.kibana], source = var.operator_ip }
-        # Commented the line below: Claude claims - Without this, Azure's default AllowVnetInBound (65000) lets any VNet host reach 5044/9200.
-        # "Deny-beats-elasticsearch" = { priority = 400, ports = [local.ports.beats, local.ports.elasticsearch], source = "*", access = "Deny", protocol = "*" }
+        # Without this, Azure's default AllowVnetInBound (65000) lets any VNet host reach 5044/9200.
+        "Deny-beats-elasticsearch" = { priority = 400, ports = [local.ports.beats, local.ports.elasticsearch], source = "*", access = "Deny", protocol = "*" }
       }
     }
   }
