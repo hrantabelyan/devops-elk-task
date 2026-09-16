@@ -1,0 +1,87 @@
+---
+# Ubuntu's certbot package is far older than 5.4, so certbot comes from snap. The snap also brings the
+# timer that renews the certificate twice a day, which is what keeps these 6.7-day certificates alive.
+- name: Wait for snapd to finish seeding
+  ansible.builtin.command: snap wait system seed.loaded
+  changed_when: false
+
+- name: Install certbot
+  ansible.builtin.command:
+    cmd: snap install --classic certbot
+    creates: /snap/bin/certbot
+
+- name: Put certbot on PATH
+  ansible.builtin.file:
+    src: /snap/bin/certbot
+    dest: /usr/bin/certbot
+    state: link
+
+- name: Read the certbot version
+  ansible.builtin.command: certbot --version
+  register: apache_certbot_version
+  changed_when: false
+
+- name: Check that certbot can validate an IP address
+  ansible.builtin.assert:
+    that:
+      - apache_certbot_installed_version is version(apache_certbot_minimum_version, '>=')
+    fail_msg: >-
+      certbot {{ apache_certbot_installed_version }} cannot validate an IP address over webroot.
+      Version {{ apache_certbot_minimum_version }} or later is required.
+    quiet: true
+  vars:
+    apache_certbot_installed_version: >-
+      {{ (apache_certbot_version.stdout ~ ' ' ~ apache_certbot_version.stderr) | regex_search('[0-9]+\.[0-9]+(\.[0-9]+)?') }}
+
+- name: Create the renewal timer drop-in directory
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ apache_certbot_renew_timer }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# The snap's timer only fires at its two daily times. Persistent catches up a run that was missed
+# while the VM was stopped, so a VM that comes back with an expired certificate renews at boot.
+- name: Renew at boot when a scheduled run was missed
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ apache_certbot_renew_timer }}.d/persistent.conf"
+    content: |
+      [Timer]
+      Persistent=true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure the renewal timer is enabled
+  ansible.builtin.systemd_service:
+    name: "{{ apache_certbot_renew_timer }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Read the existing certificate
+  community.crypto.x509_certificate_info:
+    path: "{{ apache_certbot_certificate }}"
+  register: apache_certbot_certificate_info
+  when: apache_certbot_certificate_file.stat.exists
+
+# Renewal is the timer's job. Ansible only asks for a certificate that is missing or issued for another IP,
+# and the deploy hook reloads Apache whenever certbot writes a new one.
+- name: Request a Let's Encrypt certificate for the public IP
+  ansible.builtin.command:
+    cmd: >-
+      certbot certonly --non-interactive --agree-tos
+      {{ '--email ' ~ apache_certbot_email if apache_certbot_email else '--register-unsafely-without-email' }}
+      --preferred-profile {{ apache_certbot_profile }}
+      --webroot --webroot-path {{ apache_certbot_webroot }}
+      --ip-address {{ ansible_host }}
+      --cert-name {{ apache_certbot_cert_name }}
+      --deploy-hook "systemctl reload apache2"
+      {{ '--force-renewal' if apache_certbot_certificate_file.stat.exists else '' }}
+      {{ apache_certbot_extra_args | join(' ') }}
+  when: >-
+    not apache_certbot_certificate_file.stat.exists
+    or apache_certbot_certificate_info.subject_alt_name != ['IP:' ~ ansible_host]
+  changed_when: true
+  notify: Reload Apache

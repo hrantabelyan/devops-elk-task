@@ -35,7 +35,7 @@
 
 - name: Create ACME challenge directory
   ansible.builtin.file:
-    path: "{{ apache_acme_webroot }}/.well-known/acme-challenge"
+    path: "{{ apache_certbot_webroot }}/.well-known/acme-challenge"
     state: directory
     owner: root
     group: root
@@ -81,6 +81,18 @@
 
 # Apache refuses to start while an enabled vhost points at a missing certificate file, and Let's Encrypt
 # checks the http-01 challenge over port 80. So only the HTTP vhost runs until the certificate exists.
+- name: Check for a certificate from certbot
+  ansible.builtin.stat:
+    path: "{{ apache_certbot_certificate }}"
+  register: apache_certbot_certificate_file
+
+- name: Disable the HTTPS virtual host while the certificate is missing
+  ansible.builtin.command:
+    cmd: a2dissite https-site
+    removes: /etc/apache2/sites-enabled/https-site.conf
+  when: not apache_certbot_certificate_file.stat.exists
+  notify: Reload Apache
+
 - name: Enable the HTTP virtual host
   ansible.builtin.command:
     cmd: a2ensite http-redirect
@@ -96,8 +108,8 @@
 - name: Apply pending configuration changes
   ansible.builtin.meta: flush_handlers
 
-- name: Issue or renew the Let's Encrypt certificate
-  ansible.builtin.import_tasks: acme.yml
+- name: Install certbot and get the certificate
+  ansible.builtin.import_tasks: certbot.yml
 
 - name: Enable the HTTPS virtual host
   ansible.builtin.command:

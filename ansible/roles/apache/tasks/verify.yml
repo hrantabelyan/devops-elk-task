@@ -39,6 +39,11 @@
     content: "{{ apache_served_certificate.cert }}"
   register: apache_served_certificate_info
 
+- name: Read the state of the renewal timer
+  ansible.builtin.systemd_service:
+    name: "{{ apache_certbot_renew_timer }}"
+  register: apache_certbot_timer
+
 - name: Assert web server requirements
   ansible.builtin.assert:
     that:
@@ -47,10 +52,13 @@
       - "'Server at' not in apache_404_check.content"
       - apache_served_certificate_info.issuer.organizationName | default('') is search('Encrypt')
       - ('IP:' ~ ansible_host) in apache_served_certificate_info.subject_alt_name
+      - apache_certbot_timer.status.UnitFileState == 'enabled'
+      - apache_certbot_timer.status.ActiveState == 'active'
     fail_msg: >-
       Expected: HTTP 301 to https (ACME path excepted), Server header 'Apache' only, no signature on error pages,
-      and a Let's Encrypt certificate for {{ ansible_host }}.
+      a Let's Encrypt certificate for {{ ansible_host }}, and {{ apache_certbot_renew_timer }} enabled.
     success_msg: >-
       HTTP redirects to HTTPS, Server header is 'Apache', error pages carry no signature,
       and Apache serves a certificate from {{ apache_served_certificate_info.issuer.organizationName }}
-      for {{ ansible_host }}, valid until {{ apache_served_certificate_info.not_after }}.
+      for {{ ansible_host }}, valid until {{ apache_served_certificate_info.not_after }},
+      renewed by {{ apache_certbot_renew_timer }}.

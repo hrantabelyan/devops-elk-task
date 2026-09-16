@@ -5,8 +5,8 @@
 <VirtualHost *:{{ apache_http_port }}>
     ServerName {{ apache_server_name }}
 
-    Alias /.well-known/acme-challenge/ {{ apache_acme_webroot }}/.well-known/acme-challenge/
-    <Directory {{ apache_acme_webroot }}/.well-known/acme-challenge>
+    Alias /.well-known/acme-challenge/ {{ apache_certbot_webroot }}/.well-known/acme-challenge/
+    <Directory {{ apache_certbot_webroot }}/.well-known/acme-challenge>
         Options None
         AllowOverride None
         Require all granted

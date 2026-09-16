@@ -6,21 +6,21 @@ apache_https_port: "{{ https_port | default(443) }}"
 apache_server_name: "{{ inventory_hostname }}"
 apache_document_root: /var/www/html
 
-apache_tls_dir: /etc/apache2/tls
-apache_tls_private_key: "{{ apache_tls_dir }}/server.key"
-
-# Let's Encrypt certificate for the public IP. IP certificates require the shortlived profile (160 hours).
-# While testing, use https://acme-staging-v02.api.letsencrypt.org/directory to stay clear of rate limits.
-apache_acme_directory: https://acme-v02.api.letsencrypt.org/directory
-apache_acme_profile: shortlived
-# Set to true once you have read and accept the Let's Encrypt Subscriber Agreement: https://letsencrypt.org/repository/
-apache_acme_terms_agreed: true
-apache_acme_contact: []
-apache_acme_dir: /etc/apache2/acme
-apache_acme_account_key: "{{ apache_acme_dir }}/account.key"
-apache_acme_webroot: /var/www/acme
-# The HTTPS vhost serves this file, so it is enabled only once the file exists.
-apache_acme_certificate: "{{ apache_tls_dir }}/letsencrypt-fullchain.crt"
-# Re-issue when the certificate would no longer be valid this far ahead. Run the playbook more often than this.
-apache_acme_renew_before: "+3d"
-apache_acme_force: false
+# Let's Encrypt certificate for the public IP, requested and renewed by certbot on the server itself.
+# IP certificates need the shortlived profile: valid for 160 hours, about 6.7 days.
+apache_certbot_profile: shortlived
+apache_certbot_webroot: /var/www/acme
+# Leave empty to register without an address, or set one to get expiry warnings from Let's Encrypt.
+apache_certbot_email: ""
+# certbot keeps the certificate under this name and reuses it on renewal.
+apache_certbot_cert_name: "{{ inventory_hostname }}"
+apache_certbot_dir: "/etc/letsencrypt/live/{{ apache_certbot_cert_name }}"
+# The HTTPS vhost serves these, so it is enabled only once they exist.
+apache_certbot_certificate: "{{ apache_certbot_dir }}/fullchain.pem"
+apache_certbot_private_key: "{{ apache_certbot_dir }}/privkey.pem"
+# 5.4 is the first certbot whose webroot plugin can validate an IP address.
+apache_certbot_minimum_version: "5.4"
+# The snap ships this timer, which renews the certificate without Ansible.
+apache_certbot_renew_timer: snap.certbot.renew.timer
+# Extra certbot arguments, e.g. ["--test-cert"] to use the staging environment while testing.
+apache_certbot_extra_args: []

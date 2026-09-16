@@ -5,8 +5,8 @@
 
     SSLEngine on
     SSLProtocol -all +TLSv1.2 +TLSv1.3
-    SSLCertificateFile {{ apache_acme_certificate }}
-    SSLCertificateKeyFile {{ apache_tls_private_key }}
+    SSLCertificateFile {{ apache_certbot_certificate }}
+    SSLCertificateKeyFile {{ apache_certbot_private_key }}
 
     <Directory {{ apache_document_root }}>
         Options -Indexes
