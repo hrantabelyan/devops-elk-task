@@ -197,3 +197,25 @@ To change it, edit the dashboard in Kibana, save, then export it over the file f
 ```bash
 curl -s -u "elastic:$(cat .secrets/elastic)" -H 'kbn-xsrf: true' -H 'Content-Type: application/json' -X POST "http://<elk public IP>:5601/api/saved_objects/_export" -d '{"objects":[{"type":"dashboard","id":"apache-web-server"}],"includeReferencesDeep":true,"excludeExportDetails":true}' | jq -c 'del(.updated_at, .created_at, .version, .updated_by, .created_by)' > roles/kibana_dashboard/files/apache-web-server.ndjson
 ```
+
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request into `main`, every push to `main`, and on demand from the Actions tab. It only checks the code: there is no Azure login and no secrets, and nothing is planned or deployed. Changes to Markdown files alone don't start it.
+
+| Job | Checks |
+| --- | --- |
+| Terraform quality | `terraform fmt -check -recursive`, then `terraform init -backend=false` and `terraform validate` in `terraform/envs/dev` |
+| Ansible quality | `ansible-lint` in `ansible/`, which also runs the playbook syntax check (ansible-core 2.21.4, ansible-lint 26.10.1) |
+| Workflow quality | `actionlint` on the workflow files, including shellcheck on their scripts |
+
+Run the same checks locally before pushing. From the repository root:
+
+```bash
+terraform fmt -check -recursive terraform
+```
+
+From `ansible/`:
+
+```bash
+ansible-lint
+```

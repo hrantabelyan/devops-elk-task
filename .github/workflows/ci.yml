@@ -1,0 +1,101 @@
+name: CI
+
+# Checks every pull request into main and every push to main. Offline: no Azure login, no secrets,
+# nothing is planned or deployed.
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request replaces the run still going for the older one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The versions this repo is tested with locally.
+  TERRAFORM_VERSION: 1.16.1
+  ANSIBLE_CORE_VERSION: 2.21.4
+  ANSIBLE_LINT_VERSION: 26.10.1
+  PYTHON_VERSION: "3.13"
+  TF_DIR: terraform/envs/dev
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  terraform-quality:
+    name: Terraform quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive -diff terraform
+
+      # No backend and no Azure login: this checks the configuration, not what is deployed.
+      - name: Validate
+        run: |
+          terraform -chdir="$TF_DIR" init -backend=false
+          terraform -chdir="$TF_DIR" validate
+
+  ansible-quality:
+    name: Ansible quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Ansible and ansible-lint
+        run: pip install "ansible-core==$ANSIBLE_CORE_VERSION" "ansible-lint==$ANSIBLE_LINT_VERSION"
+
+      # ansible-lint also runs the playbook syntax check.
+      - name: Lint
+        working-directory: ansible
+        run: |
+          ansible-galaxy collection install -r requirements.yml
+          ansible-lint
+
+  workflow-quality:
+    name: Workflow quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Lint GitHub Actions workflows
+        uses: docker://rhysd/actionlint:1.7.12

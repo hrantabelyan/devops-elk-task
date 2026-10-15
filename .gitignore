@@ -45,3 +45,6 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# Local scratch files (walkthroughs, notes)
+tmp/
