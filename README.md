@@ -1,6 +1,6 @@
 # ELK + Apache on Azure
 
-Two Ubuntu 24.04 VMs on Azure. One runs a hardened Apache web server and ships its logs with Filebeat; the other runs Elasticsearch, Logstash and Kibana, receives those logs and shows them on a dashboard. A single `terraform apply` builds everything: Terraform creates the infrastructure, then its `local-exec` provisioner runs Ansible, which installs and configures the ELK stack, Apache and Filebeat.
+Two Ubuntu 24.04 VMs on Azure. One runs a hardened Apache web server and ships its logs with Filebeat; the other runs Elasticsearch, Logstash and Kibana, receives those logs and shows them on a dashboard. A single `terraform apply` builds everything: Terraform creates the infrastructure, then its `local-exec` provisioner runs Ansible, which installs and configures the ELK stack, Apache and Filebeat. GitHub Actions checks every pull request and push to `main`.
 
 ## Goal
 
@@ -47,6 +47,9 @@ IPs and keys are never copied by hand: Ansible reads the inventory and key Terra
 
 ```
 .
+├── .github/workflows/
+│   └── ci.yml        formatting, validation, lint and Checkov checks on pull requests and pushes to main
+├── .checkov.yaml     Checkov settings: frameworks, skipped local files, skipped checks
 ├── terraform/
 │   ├── modules/
 │   │   ├── vnet/     virtual network and subnets
@@ -206,6 +209,7 @@ curl -s -u "elastic:$(cat .secrets/elastic)" -H 'kbn-xsrf: true' -H 'Content-Typ
 | --- | --- |
 | Terraform quality | `terraform fmt -check -recursive`, then `terraform init -backend=false` and `terraform validate` in `terraform/envs/dev` |
 | Ansible quality | `ansible-lint` in `ansible/`, which also runs the playbook syntax check (ansible-core 2.21.4, ansible-lint 26.10.1) |
+| Security scan | Checkov 3.3.22 on Terraform, Ansible, the workflows, and every file for leaked secrets, with the settings in `.checkov.yaml` |
 | Workflow quality | `actionlint` on the workflow files, including shellcheck on their scripts |
 
 Run the same checks locally before pushing. From the repository root:
@@ -219,3 +223,17 @@ From `ansible/`:
 ```bash
 ansible-lint
 ```
+
+From the repository root. Checkov reads `.checkov.yaml`, which skips gitignored local files such as `ansible/.secrets/` and the Terraform state:
+
+```bash
+checkov
+```
+
+Checkov findings that are intended are suppressed next to the code, with the reason, as the first line inside the Terraform resource or Ansible task:
+
+```hcl
+# checkov:skip=CKV_AZURE_119: both VMs need a public IP: web serves the site, elk takes SSH and Kibana from the operator IP
+```
+
+Any other finding fails the job. One check, `CKV2_ANSIBLE_3` (a block without `rescue`), is skipped in `.checkov.yaml` instead, because Checkov ignores skip comments on blocks.

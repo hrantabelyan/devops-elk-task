@@ -1,6 +1,7 @@
 ---
 # Runs on the web server itself against 127.0.0.1, so it checks Apache, not the NSG.
 - name: Request the site over HTTP
+  # checkov:skip=CKV2_ANSIBLE_1: checks on purpose that plain HTTP redirects to HTTPS
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ apache_http_port }}/"
     follow_redirects: none
@@ -8,12 +9,14 @@
   register: apache_http_check
 
 - name: Request an ACME challenge path over HTTP
+  # checkov:skip=CKV2_ANSIBLE_1: checks on purpose that the ACME challenge path is served over plain HTTP
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ apache_http_port }}/.well-known/acme-challenge/ansible-check"
     follow_redirects: none
     status_code: 404
 
 - name: Request the site over HTTPS
+  # checkov:skip=CKV_ANSIBLE_1: 127.0.0.1 can't match the certificate, which is for the public IP; it is checked below
   ansible.builtin.uri:
     url: "https://127.0.0.1:{{ apache_https_port }}/"
     validate_certs: false
@@ -21,6 +24,7 @@
   register: apache_https_check
 
 - name: Request a missing page over HTTPS
+  # checkov:skip=CKV_ANSIBLE_1: 127.0.0.1 can't match the certificate, which is for the public IP; it is checked below
   ansible.builtin.uri:
     url: "https://127.0.0.1:{{ apache_https_port }}/ansible-signature-check"
     validate_certs: false

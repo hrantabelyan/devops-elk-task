@@ -1,0 +1,26 @@
+# Checkov settings, used by CI and by `checkov` run from the repository root.
+# Findings that are intended are suppressed next to the code with `checkov:skip=<id>: <reason>`,
+# so every new finding fails the scan.
+directory:
+  - .
+framework:
+  - terraform
+  - ansible
+  - github_actions
+  - secrets
+skip-check:
+  # An Ansible block without rescue. The only block (elk role, setting the elastic password) should stop
+  # the run when it fails, and Checkov ignores skip comments on blocks.
+  - CKV2_ANSIBLE_3
+# Gitignored local files: provider downloads, state, generated keys and passwords, scratch pages.
+skip-path:
+  - \.terraform/
+  - \.tfstate
+  - \.tfvars$
+  - ansible/\.secrets/
+  - ansible/\.ssh/
+  - ansible/inventory\.ini
+  - ^tmp/
+compact: true
+quiet: true
+skip-download: true

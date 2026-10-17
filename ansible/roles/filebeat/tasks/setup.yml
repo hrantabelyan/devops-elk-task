@@ -25,6 +25,7 @@
 # filebeat-<version> data stream template must exist in Elasticsearch first. Only `filebeat setup` creates them,
 # and it talks to Elasticsearch directly, so Logstash output is switched off for that one command.
 - name: Check for the apache ingest pipelines and index template
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from filebeat_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ filebeat_elasticsearch_url }}/{{ item }}"
     url_username: elastic

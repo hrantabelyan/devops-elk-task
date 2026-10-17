@@ -8,6 +8,7 @@ resource "azurerm_public_ip" "this" {
 }
 
 resource "azurerm_network_interface" "this" {
+  # checkov:skip=CKV_AZURE_119: both VMs need a public IP: web serves the site, elk takes SSH and Kibana from the operator IP
   name                           = "${var.name}-nic"
   location                       = var.location
   resource_group_name            = var.resource_group_name
@@ -29,6 +30,7 @@ resource "azurerm_network_interface_security_group_association" "this" {
 }
 
 resource "azurerm_linux_virtual_machine" "this" {
+  # checkov:skip=CKV_AZURE_50: extensions stay allowed, so Azure's VM access reset and Run Command remain a way in
   name                  = var.name
   location              = var.location
   resource_group_name   = var.resource_group_name

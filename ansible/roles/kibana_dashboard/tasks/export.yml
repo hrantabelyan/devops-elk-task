@@ -1,6 +1,7 @@
 ---
 # Returns 200 with the dashboard and everything it references, or 400 when the dashboard does not exist.
 - name: Export the dashboard with everything it references
+  # checkov:skip=CKV2_ANSIBLE_1: Kibana serves plain HTTP on this VM's private IP in this lab
   ansible.builtin.uri:
     url: "{{ kibana_dashboard_kibana_url }}/api/saved_objects/_export"
     method: POST

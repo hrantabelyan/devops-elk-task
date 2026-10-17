@@ -6,6 +6,7 @@
     timeout: 300
 
 - name: Check Elasticsearch cluster health
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from elk_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ elk_elasticsearch_url }}/_cluster/health"
     url_username: elastic
@@ -15,6 +16,7 @@
   register: elk_health
 
 - name: Wait for Kibana to become available
+  # checkov:skip=CKV2_ANSIBLE_1: Kibana serves plain HTTP on this VM's private IP in this lab
   ansible.builtin.uri:
     url: "http://{{ elk_bind_host }}:{{ elk_kibana_port }}/api/status"
     url_username: elastic

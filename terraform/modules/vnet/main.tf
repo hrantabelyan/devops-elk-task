@@ -7,6 +7,7 @@ resource "azurerm_virtual_network" "this" {
 }
 
 resource "azurerm_subnet" "this" {
+  # checkov:skip=CKV2_AZURE_31: NSGs are attached to each VM's network interface (modules/vm), not to the subnet
   for_each = var.subnets
 
   name                 = each.key

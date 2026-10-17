@@ -1,5 +1,6 @@
 ---
 - name: Check the elastic password
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from elk_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ elk_elasticsearch_url }}/_security/_authenticate"
     url_username: elastic
@@ -41,6 +42,7 @@
       no_log: true
 
 - name: Check the kibana_system password
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from elk_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ elk_elasticsearch_url }}/_security/_authenticate"
     url_username: kibana_system
@@ -52,6 +54,7 @@
   no_log: true
 
 - name: Set the kibana_system password
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from elk_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ elk_elasticsearch_url }}/_security/user/kibana_system/_password"
     method: POST
@@ -67,6 +70,7 @@
   no_log: true
 
 - name: Create the Logstash writer role
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from elk_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ elk_elasticsearch_url }}/_security/role/{{ elk_logstash_role }}"
     method: PUT
@@ -85,6 +89,7 @@
   no_log: true
 
 - name: Check the Logstash writer password
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from elk_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ elk_elasticsearch_url }}/_security/_authenticate"
     url_username: "{{ elk_logstash_user }}"
@@ -96,6 +101,7 @@
   no_log: true
 
 - name: Create or reset the Logstash writer user
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from elk_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ elk_elasticsearch_url }}/_security/user/{{ elk_logstash_user }}"
     method: PUT

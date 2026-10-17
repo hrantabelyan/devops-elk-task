@@ -9,6 +9,7 @@
 
 # A 404 for a unique path: it ends up in access.log and is easy to find in Elasticsearch.
 - name: Request a missing page to write a known access log line
+  # checkov:skip=CKV_ANSIBLE_1: calls 127.0.0.1 only to write an access log line; the certificate is for the public IP
   ansible.builtin.uri:
     url: "https://127.0.0.1/filebeat-check-{{ filebeat_check_epoch }}"
     validate_certs: false
@@ -21,6 +22,7 @@
 
 # Events with error.message failed their ingest pipeline; only parsed events count.
 - name: Wait for parsed access and error events from this check
+  # checkov:skip=CKV2_ANSIBLE_1: the URL is https, from filebeat_elasticsearch_url; Checkov can't resolve the template
   ansible.builtin.uri:
     url: "{{ filebeat_elasticsearch_url }}/filebeat-*/_search"
     method: POST

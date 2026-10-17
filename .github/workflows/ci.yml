@@ -28,6 +28,7 @@ env:
   TERRAFORM_VERSION: 1.16.1
   ANSIBLE_CORE_VERSION: 2.21.4
   ANSIBLE_LINT_VERSION: 26.10.1
+  CHECKOV_VERSION: 3.3.22
   PYTHON_VERSION: "3.13"
   TF_DIR: terraform/envs/dev
   TF_IN_AUTOMATION: "true"
@@ -85,6 +86,30 @@ jobs:
         run: |
           ansible-galaxy collection install -r requirements.yml
           ansible-lint
+
+  security-scan:
+    name: Security scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Checkov
+        run: pip install "checkov==$CHECKOV_VERSION"
+
+      # Frameworks, skipped paths and the one skipped check come from .checkov.yaml. Intended findings
+      # are suppressed next to the code with a reason, so any new finding fails this job.
+      - name: Scan Terraform, Ansible, workflows and secrets
+        run: checkov
 
   workflow-quality:
     name: Workflow quality

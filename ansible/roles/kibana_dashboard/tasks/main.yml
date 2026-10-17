@@ -10,6 +10,7 @@
     kibana_dashboard_differs: "{{ kibana_dashboard_current != kibana_dashboard_wanted }}"
 
 - name: Import the dashboard when Kibana differs from git
+  # checkov:skip=CKV2_ANSIBLE_1: Kibana serves plain HTTP on this VM's private IP in this lab
   ansible.builtin.uri:
     url: "{{ kibana_dashboard_kibana_url }}/api/saved_objects/_import?overwrite=true"
     method: POST
