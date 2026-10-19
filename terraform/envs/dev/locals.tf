@@ -60,6 +60,17 @@ locals {
     managed_by  = "terraform"
   }
 
+  # Created once by an admin, not by Terraform (README, Prerequisites). Terraform only manages its secrets.
+  key_vault_name = "${local.name}-kv"
+
+  # Elastic Stack passwords in Key Vault (secrets.tf): secret name => version. Bump a version to rotate that password.
+  # ansible/group_vars/all.yml maps the same names to the variables the roles use.
+  stack_passwords = {
+    "elastic-password"           = 1
+    "kibana-system-password"     = 1
+    "logstash-internal-password" = 1
+  }
+
   ansible_dir = abspath("${path.module}/../../../ansible")
   # Host keys Ansible learns for these VMs, kept apart from ~/.ssh/known_hosts and cleared before each Terraform-run playbook.
   ssh_known_hosts_file = "${local.ansible_dir}/.ssh/known_hosts"

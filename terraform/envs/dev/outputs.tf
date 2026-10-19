@@ -20,3 +20,8 @@ output "ssh_commands" {
 output "ansible_inventory_file" {
   value = local_file.ansible_inventory.filename
 }
+
+output "key_vault_name" {
+  description = "Key Vault holding the Elastic Stack passwords."
+  value       = data.azurerm_key_vault.this.name
+}

@@ -1,4 +1,37 @@
 ---
+# Tagged always so runs limited to one role still have the passwords. They are read on this machine,
+# before the servers are reachable, so a missing az login or role fails here instead of mid-run.
+- name: Read the stack passwords from Key Vault
+  hosts: all
+  gather_facts: false
+  tags: always
+  tasks:
+    # The rule warns about the free strategy, which this playbook doesn't use.
+    - name: Read the stack passwords # noqa: run-once[task]
+      run_once: true
+      block:
+        # The roles use each password many times, some inside retries; reading them here makes one az call each.
+        # run_once still sets the facts on every host.
+        - name: Read each password with the Azure CLI
+          ansible.builtin.set_fact:
+            "{{ item.value }}": >-
+              {{ lookup('ansible.builtin.pipe',
+                        'az keyvault secret show --vault-name ' ~ key_vault_name ~ ' --name ' ~ item.key
+                        ~ ' --query value --output tsv') }}
+          loop: "{{ stack_password_secrets | dict2items }}"
+          loop_control:
+            label: "{{ item.key }}"
+          no_log: true
+      # The lookup doesn't pass on az's own error message, so name the usual causes.
+      rescue:
+        - name: Explain why the passwords could not be read
+          ansible.builtin.fail:
+            msg: >-
+              Could not read the stack passwords from Key Vault {{ key_vault_name }}. Check that az login
+              is done, that you have Key Vault Secrets User or Officer on the vault (README, Prerequisites),
+              and that terraform apply has written the secrets.
+              az keyvault secret show --vault-name {{ key_vault_name }} --name elastic-password shows the error.
+
 # Tagged always so runs limited to one role also wait. Terraform starts this playbook right after creating the VMs.
 - name: Wait for the servers to finish booting
   hosts: all
